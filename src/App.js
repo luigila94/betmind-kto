@@ -177,7 +177,7 @@ function AnaliseKTO({ bankroll, keys }) {
         method: "POST",
         headers: { "Content-Type": "application/json", "x-api-key": keys.claudeKey, "anthropic-version": "2023-06-01", "anthropic-dangerous-direct-browser-access": "true" },
         body: JSON.stringify({
-          model: "claude-3-5-sonnet-20241022",
+          model: "claude-3-haiku-20240307",
           max_tokens: 1500,
           system: `Você é um analista de apostas esportivas especializado na KTO. Analise os jogos com odds reais e retorne EXATAMENTE um JSON válido sem markdown:
 {"picks":[{"match":"Nome do jogo","market":"Mercado","pick":"Seleção exata","odds":1.75,"greenRate":72,"confidence":"Alta","reasoning":"Justificativa técnica em 1-2 frases","expectedReturn":26.0,"risk":"Baixo"}]}
@@ -450,7 +450,7 @@ function Chat({ keys }) {
       const res = await fetch("https://api.anthropic.com/v1/messages", {
         method: "POST",
         headers: { "Content-Type": "application/json", "x-api-key": keys.claudeKey, "anthropic-version": "2023-06-01", "anthropic-dangerous-direct-browser-access": "true" },
-        body: JSON.stringify({ model: "claude-3-5-sonnet-20241022", max_tokens: 1000, system: SYSTEM_CHAT, messages: newMsgs.map(m => ({ role: m.role, content: m.content })) }),
+        body: JSON.stringify({ model: "claude-3-haiku-20240307", max_tokens: 1000, system: SYSTEM_CHAT, messages: newMsgs.map(m => ({ role: m.role, content: m.content })) }),
       });
       const data = await res.json();
       setMessages(p => [...p, { role: "assistant", content: data.content?.map(c => c.text || "").join("") || "Erro." }]);
