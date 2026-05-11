@@ -175,7 +175,7 @@ function AnaliseKTO({ bankroll, keys }) {
 
       const aiRes = await fetch("https://api.anthropic.com/v1/messages", {
         method: "POST",
-        headers: { "Content-Type": "application/json", "x-api-key": keys.claudeKey, "anthropic-version": "2023-06-01" },
+        headers: { "Content-Type": "application/json", "x-api-key": keys.claudeKey, "anthropic-version": "2023-06-01", "anthropic-dangerous-direct-browser-access": "true" },
         body: JSON.stringify({
           model: "claude-sonnet-4-20250514",
           max_tokens: 1500,
@@ -449,7 +449,7 @@ function Chat({ keys }) {
     try {
       const res = await fetch("https://api.anthropic.com/v1/messages", {
         method: "POST",
-        headers: { "Content-Type": "application/json", "x-api-key": keys.claudeKey, "anthropic-version": "2023-06-01" },
+        headers: { "Content-Type": "application/json", "x-api-key": keys.claudeKey, "anthropic-version": "2023-06-01", "anthropic-dangerous-direct-browser-access": "true" },
         body: JSON.stringify({ model: "claude-sonnet-4-20250514", max_tokens: 1000, system: SYSTEM_CHAT, messages: newMsgs.map(m => ({ role: m.role, content: m.content })) }),
       });
       const data = await res.json();
