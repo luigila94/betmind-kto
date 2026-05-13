@@ -48,11 +48,11 @@ const inp = (extra = {}) => ({
 
 // ─── SETTINGS ─────────────────────────────────────────────────────────────────
 function Settings({ keys, setKeys }) {
-  const [form, setForm] = useState({ oddsKey: keys.oddsKey || "", claudeKey: keys.claudeKey || "" });
+  const [form, setForm] = useState({ oddsKey: keys.oddsKey || "", claudeKey: keys.claudeKey || "", sportsKey: keys.sportsKey || "" });
   const [saved, setSaved] = useState(false);
 
   const save = () => {
-    const newKeys = { oddsKey: form.oddsKey.trim(), claudeKey: form.claudeKey.trim() };
+    const newKeys = { oddsKey: form.oddsKey.trim(), claudeKey: form.claudeKey.trim(), sportsKey: form.sportsKey.trim() };
     setKeys(newKeys);
     localStorage.setItem("betmind_keys", JSON.stringify(newKeys));
     setSaved(true);
@@ -81,6 +81,13 @@ function Settings({ keys, setKeys }) {
           <input value={form.oddsKey} onChange={e => setForm({ ...form, oddsKey: e.target.value })} placeholder="sua chave aqui..." type="password" style={inp()} />
         </div>
 
+        <div style={{ marginBottom: 14 }}>
+          <div style={{ color: C.muted, fontSize: 10, textTransform: "uppercase", letterSpacing: 1, marginBottom: 5 }}>
+            AllSports API Key (RapidAPI) — <a href="https://rapidapi.com" target="_blank" rel="noreferrer" style={{ color: C.accent }}>rapidapi.com</a>
+          </div>
+          <input value={form.sportsKey} onChange={e => setForm({ ...form, sportsKey: e.target.value })} placeholder="x-rapidapi-key..." type="password" style={inp()} />
+        </div>
+
         <button onClick={save} style={{ width: "100%", background: `linear-gradient(135deg,${C.kto},#c09030)`, border: "none", borderRadius: 8, color: "#1a1100", padding: 10, cursor: "pointer", fontWeight: 700, fontSize: 13 }}>
           {saved ? "✓ Salvo!" : "Salvar Chaves"}
         </button>
@@ -91,6 +98,7 @@ function Settings({ keys, setKeys }) {
         {[
           { label: "Anthropic (Chat IA)", ok: !!keys.claudeKey },
           { label: "The Odds API (Jogos reais)", ok: !!keys.oddsKey },
+          { label: "AllSports API (Estatísticas)", ok: !!keys.sportsKey },
         ].map(s => (
           <div key={s.label} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "8px 0", borderBottom: `1px solid ${C.border}` }}>
             <span style={{ color: C.text, fontSize: 12 }}>{s.label}</span>
@@ -165,7 +173,49 @@ function AnaliseKTO({ bankroll, keys }) {
         return;
       }
 
-      // AI analysis
+      // Step 2: Fetch live stats from AllSportsApi
+      setStep("stats");
+      let statsText = "";
+      if (keys.sportsKey) {
+        try {
+          const sportMap = {
+            "soccer_brazil_campeonato": "football",
+            "soccer_epl": "football",
+            "soccer_spain_la_liga": "football",
+            "soccer_italy_serie_a": "football",
+            "soccer_germany_bundesliga": "football",
+            "soccer_uefa_champs_league": "football",
+            "basketball_nba": "basketball",
+            "americanfootball_nfl": "american-football",
+            "baseball_mlb": "baseball",
+            "icehockey_nhl": "hockey",
+            "mma_mixed_martial_arts": "mma",
+          };
+          const sportType = sportMap[s.id] || "football";
+          const statsRes = await fetch(
+            `https://allsportsapi2.p.rapidapi.com/api/${sportType}/matches/live`,
+            { headers: { "x-rapidapi-key": keys.sportsKey, "x-rapidapi-host": "allsportsapi2.p.rapidapi.com" } }
+          );
+          if (statsRes.ok) {
+            const statsData = await statsRes.json();
+            const events = statsData?.events || statsData?.matches || [];
+            if (events.length > 0) {
+              statsText = "\n\nESTATÍSTICAS AO VIVO:\n" + events.slice(0, 8).map(e => {
+                const home = e.homeTeam?.name || "";
+                const away = e.awayTeam?.name || "";
+                const homeScore = e.homeScore?.current ?? "";
+                const awayScore = e.awayScore?.current ?? "";
+                const status = e.status?.description || e.statusType || "";
+                return `• ${home} x ${away} | Placar: ${homeScore}-${awayScore} | Status: ${status}`;
+              }).join("\n");
+            }
+          }
+        } catch(err) {
+          console.log("Stats fetch skipped:", err.message);
+        }
+      }
+
+      // Step 3: AI analysis with odds + stats
       setStep("analyzing");
       const gamesText = formatted.map(g => {
         const h2hStr = g.h2h.map(o => `${o.name}: @${o.price}`).join(", ");
@@ -179,10 +229,10 @@ function AnaliseKTO({ bankroll, keys }) {
         body: JSON.stringify({
           model: "claude-opus-4-7",
           max_tokens: 1500,
-          system: `Você é um analista de apostas esportivas especializado na KTO. Analise os jogos com odds reais e retorne EXATAMENTE um JSON válido sem markdown:
-{"picks":[{"match":"Nome do jogo","market":"Mercado","pick":"Seleção exata","odds":1.75,"greenRate":72,"confidence":"Alta","reasoning":"Justificativa técnica em 1-2 frases","expectedReturn":26.0,"risk":"Baixo"}]}
-Selecione os 4-5 melhores picks com maior taxa histórica de green. greenRate: % estimada de acerto histórico. Priorize Over/Under com odds 1.7-2.1 e favoritos claros no H2H.`,
-          messages: [{ role: "user", content: `Analise estes jogos REAIS e escolha os melhores picks:\n${gamesText}\n\nBanca: R$ ${fmt(bankroll, 2)}. Retorne apenas JSON.` }],
+          system: `Você é um analista de apostas esportivas especializado na KTO. Analise os jogos com odds reais e estatísticas ao vivo e retorne EXATAMENTE um JSON válido sem markdown:
+{"picks":[{"match":"Nome do jogo","market":"Mercado","pick":"Seleção exata","odds":1.75,"greenRate":72,"confidence":"Alta","reasoning":"Justificativa técnica usando stats reais em 1-2 frases","expectedReturn":26.0,"risk":"Baixo"}]}
+Selecione os 4-5 melhores picks. Use estatísticas para calcular probabilidades precisas. greenRate deve refletir dados reais. Priorize Over/Under com odds 1.7-2.1 e favoritos com vantagem estatística clara.`,
+          messages: [{ role: "user", content: `Analise estes jogos REAIS com odds e estatísticas:\n${gamesText}${statsText}\n\nBanca: R$ ${fmt(bankroll, 2)}. Retorne apenas JSON.` }],
         }),
       });
 
@@ -234,8 +284,8 @@ Selecione os 4-5 melhores picks com maior taxa histórica de green. greenRate: %
           <div style={{ display: "flex", justifyContent: "center", gap: 6, marginBottom: 10 }}>
             {[0,1,2].map(d => <div key={d} style={{ width: 8, height: 8, borderRadius: "50%", background: C.kto, animation: "pulse 1.2s ease-in-out infinite", animationDelay: `${d*0.2}s` }} />)}
           </div>
-          <div style={{ color: C.kto, fontSize: 12, fontWeight: 700 }}>{step === "fetching" ? "📡 Buscando odds reais da KTO..." : "🤖 IA analisando os melhores picks..."}</div>
-          <div style={{ color: C.muted, fontSize: 10, marginTop: 4 }}>{step === "fetching" ? "Conectando à The Odds API..." : "Calculando taxa de green e retorno..."}</div>
+          <div style={{ color: C.kto, fontSize: 12, fontWeight: 700 }}>{step === "fetching" ? "📡 Buscando odds reais da KTO..." : step === "stats" ? "📊 Buscando estatísticas dos jogadores..." : "🤖 IA analisando picks com stats reais..."}</div>
+          <div style={{ color: C.muted, fontSize: 10, marginTop: 4 }}>{step === "fetching" ? "Conectando à The Odds API..." : step === "stats" ? "AllSports API..." : "Calculando probabilidades com dados reais..."}</div>
         </div>
       )}
 
